@@ -1,0 +1,471 @@
+==============================================================================
+  CLUSTER BIG DATA LOCAL — Hadoop 3.2 + Spark 3.1.2 + Jupyter
+  Guide de démarrage et d'utilisation
+==============================================================================
+
+  Technologies incluses : Apache Hadoop 3.2.1 | Apache Spark 3.1.2
+                          Jupyter Notebook | PySpark | Docker
+  Contenu du projet      : 8 conteneurs Docker préconfigurés
+  Interface principale   : http://localhost:8888  (Jupyter)
+
+==============================================================================
+
+
+------------------------------------------------------------------------------
+  PRÉREQUIS
+------------------------------------------------------------------------------
+
+  Avant de démarrer, vérifier que les éléments suivants sont installés
+  et disponibles sur la machine.
+
+  OBLIGATOIRE
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Docker Desktop    version 4.0 ou supérieure                           │
+  │  Téléchargement :  https://www.docker.com/products/docker-desktop      │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  CONFIGURATION MINIMALE RECOMMANDÉE
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  RAM           16 Go minimum                                            │
+  │                (les 8 conteneurs utilisent environ 10-12 Go au total)  │
+  │                                                                         │
+  │  Espace disque 20 Go libres minimum                                     │
+  │                (images Docker : ~8 Go | données : selon usage)         │
+  │                                                                         │
+  │  Processeur    4 cœurs minimum                                          │
+  │                                                                         │
+  │  Système       Windows 10/11 64 bits avec WSL2 activé                 │
+  │                macOS 11 ou supérieur                                    │
+  │                Ubuntu 20.04 ou supérieur                               │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  VÉRIFIER QUE DOCKER EST BIEN INSTALLÉ
+  Ouvrir un terminal et saisir :
+
+      docker --version
+      docker-compose --version
+
+  Les deux commandes doivent retourner un numéro de version sans erreur.
+  Docker Desktop doit être démarré avant de continuer.
+
+  NOTE WINDOWS — WSL2
+  Docker Desktop sur Windows nécessite WSL2 (Windows Subsystem for Linux 2).
+  Si ce n'est pas encore activé, ouvrir PowerShell en administrateur et
+  saisir la commande suivante, puis redémarrer la machine :
+
+      wsl --install
+
+
+------------------------------------------------------------------------------
+  CONTENU DU DOSSIER
+------------------------------------------------------------------------------
+
+      hadoop-spark-cluster/
+      │
+      ├── docker-compose.yml    fichier principal — décrit les 8 conteneurs
+      ├── hadoop.env            configuration HDFS partagée entre les nœuds
+      ├── data/                 dossier pour déposer les fichiers à traiter
+      ├── notebooks/            dossier où sont sauvegardés les notebooks
+      └── scripts/              dossier pour les scripts Spark (optionnel)
+
+  Les dossiers data/ et notebooks/ sont partagés entre le PC et les
+  conteneurs. Tout fichier déposé dans data/ est accessible depuis Jupyter.
+  Tout notebook créé dans Jupyter est automatiquement sauvegardé dans
+  notebooks/ sur le PC — même si les conteneurs sont supprimés.
+
+
+------------------------------------------------------------------------------
+  DÉMARRAGE RAPIDE — PREMIÈRE UTILISATION
+------------------------------------------------------------------------------
+
+  ÉTAPE 1 — Ouvrir un terminal dans le dossier du projet
+
+    Windows : clic droit dans le dossier → "Ouvrir dans Terminal"
+              ou ouvrir PowerShell et naviguer jusqu'au dossier :
+
+        cd chemin\vers\hadoop-spark-cluster
+
+    macOS / Linux : ouvrir un terminal et naviguer :
+
+        cd chemin/vers/hadoop-spark-cluster
+
+
+  ÉTAPE 2 — Créer les dossiers nécessaires (première fois uniquement)
+
+    Windows (PowerShell) :
+        mkdir notebooks
+        mkdir data
+        mkdir scripts
+
+    macOS / Linux :
+        mkdir -p notebooks data scripts
+
+
+  ÉTAPE 3 — Démarrer le cluster
+
+        docker-compose up -d
+
+    La première exécution télécharge toutes les images Docker (~8 Go).
+    Durée estimée : 5 à 15 minutes selon la connexion internet.
+    Les démarrages suivants prennent 30 à 60 secondes.
+
+    L'option -d (detached) démarre le cluster en arrière-plan.
+    Le terminal reste disponible immédiatement.
+
+
+  ÉTAPE 4 — Vérifier que tout est démarré
+
+        docker-compose ps
+
+    Attendre 30 secondes après le lancement avant de vérifier.
+    Tous les conteneurs doivent afficher l'état "Up" :
+
+        NAME              STATUS
+        namenode          Up
+        datanode1         Up
+        datanode2         Up
+        spark-master      Up
+        spark-worker      Up
+        spark-worker-2    Up
+        spark-worker-3    Up
+        jupyter           Up
+
+    Si un conteneur n'est pas "Up", voir la section Diagnostic plus bas.
+
+
+  ÉTAPE 5 — Ouvrir Jupyter dans le navigateur
+
+    Adresse      : http://localhost:8888
+    Mot de passe : bonjour
+
+
+  ÉTAPE 6 — Créer un nouveau notebook
+
+    Sur la page d'accueil de Jupyter, cliquer sur "New" en haut à droite,
+    puis sélectionner "Python 3 (ipykernel)" :
+
+        ┌─────────────────────────────────────────┐
+        │  Jupyter                        [New ▼] │
+        │                                 ──────── │
+        │  notebooks/                     Python 3 │ ← choisir celui-ci
+        │  data/                          (ipykernel)
+        └─────────────────────────────────────────┘
+
+    ⚠️  Ne pas choisir un autre kernel.
+    "Python 3 (ipykernel)" est le Python du conteneur Docker — c'est le
+    seul qui contient PySpark et qui peut communiquer avec le cluster.
+    Un kernel différent ne verra pas Spark et les commandes !hdfs
+    ne fonctionneront pas.
+
+    Un notebook vierge s'ouvre avec une première cellule vide.
+    Toutes les commandes de la section "Utilisation de base" ci-dessous
+    s'écrivent et s'exécutent dans les cellules de ce notebook.
+    Pour exécuter une cellule : Shift + Entrée.
+
+
+------------------------------------------------------------------------------
+  INTERFACES WEB DISPONIBLES
+------------------------------------------------------------------------------
+
+      http://localhost:8888   Jupyter Notebook       mot de passe : bonjour
+      http://localhost:9870   Interface HDFS          voir les fichiers stockés
+      http://localhost:8080   Interface Spark Master  voir les jobs et workers
+      http://localhost:8081   Spark Worker 1          état et ressources
+      http://localhost:8082   Spark Worker 2          état et ressources
+      http://localhost:8083   Spark Worker 3          état et ressources
+
+
+------------------------------------------------------------------------------
+  UTILISATION DE BASE
+------------------------------------------------------------------------------
+
+  1. DISTRIBUER UN FICHIER SUR HDFS
+  ───────────────────────────────────
+  Avant de lire un fichier avec Spark, il doit se trouver sur HDFS.
+  Voici le flux complet depuis le dépôt du fichier sur le PC jusqu'à
+  sa distribution sur les datanodes :
+
+  ÉTAPE A — Déposer le fichier dans le dossier data/ sur le PC
+
+      PC Windows
+      └── hadoop-spark-cluster/
+          └── data/
+              └── fichier.csv   ← copier le fichier ici avec l'explorateur
+                                   ou depuis PowerShell :
+                                   copy C:\...\fichier.csv .\data\
+
+  Le dossier data/ est partagé avec les conteneurs.
+  Il est automatiquement visible dans Jupyter à ce chemin :
+      /home/jovyan/data/fichier.csv
+
+
+  ÉTAPE B — Créer le dossier de destination sur HDFS (première fois)
+
+  Dans une cellule Jupyter :
+
+      !hdfs dfs -mkdir -p /data
+
+  Ce dossier /data existe sur HDFS — ce n'est pas le même que le
+  dossier local ./data sur le PC. Ce sont deux espaces distincts.
+
+
+  ÉTAPE C — Uploader le fichier vers HDFS
+
+  Dans une cellule Jupyter :
+
+      !hdfs dfs -put /home/jovyan/data/fichier.csv /data/
+
+  Ce qui se passe en coulisses :
+
+      Fichier local                                  HDFS
+      ─────────────                                  ────
+      /home/jovyan/data/fichier.csv
+               │
+               │  hdfs dfs -put
+               ↓
+      ┌─────────────────────┐
+      │      NAMENODE       │   ← découpe le fichier en blocs
+      │                     │     et décide où stocker chaque bloc
+      │  fichier.csv        │
+      │  ├── bloc 1 → DN1   │
+      │  ├── bloc 2 → DN2   │
+      │  ├── bloc 3 → DN1   │
+      │  └── bloc 4 → DN2   │
+      └──────┬──────────────┘
+             │ distribue
+      ┌──────┴──────┐
+      ↓             ↓
+  ┌─────────┐   ┌─────────┐
+  │DATANODE1│   │DATANODE2│
+  │bloc 1   │   │bloc 2   │   ← données stockées physiquement
+  │bloc 3   │   │bloc 4   │     sur les deux datanodes
+  │+copie 2 │   │+copie 1 │   ← chaque bloc copié sur l'autre
+  │+copie 4 │   │+copie 3 │     datanode (réplication = 2)
+  └─────────┘   └─────────┘
+
+
+  ÉTAPE D — Vérifier que le fichier est bien sur HDFS
+
+      !hdfs dfs -ls /data/          → lister les fichiers
+      !hdfs dfs -du -h /data/       → voir la taille
+
+
+  2. DÉMARRER UNE SESSION SPARK
+  ──────────────────────────────
+  Dans la première cellule de chaque nouveau notebook, copier ce code
+  et l'exécuter une seule fois par session :
+
+      from pyspark.sql import SparkSession
+
+      spark = SparkSession.builder \
+          .appName("MonNotebook") \
+          .master("spark://spark-master:7077") \
+          .getOrCreate()
+
+  La session reste active pour toutes les cellules suivantes du notebook.
+  Ne pas l'exécuter deux fois dans le même notebook.
+
+
+  3. LIRE UN FICHIER DEPUIS HDFS
+  ────────────────────────────────
+      df = spark.read.csv("hdfs://namenode:9000/data/fichier.csv",
+                          header=True,
+                          inferSchema=True)
+      df.show(10)
+
+
+  4. COMMANDES HDFS DEPUIS JUPYTER
+  ──────────────────────────────────
+  Le ! devant une commande l'exécute dans le terminal du conteneur.
+
+      !hdfs dfs -ls /data/                                 lister les fichiers
+      !hdfs dfs -mkdir -p /data/                           créer un dossier
+      !hdfs dfs -put /home/jovyan/data/fichier.csv /data/  uploader un fichier
+      !hdfs dfs -du -h /data/                              voir les tailles
+      !hdfs dfs -rm /data/fichier.csv                      supprimer un fichier
+
+
+  5. INSTALLER UNE BIBLIOTHÈQUE SUPPLÉMENTAIRE
+  ──────────────────────────────────────────────
+  Depuis un terminal sur le PC, entrer dans le conteneur Jupyter :
+
+      docker exec -it jupyter bash
+
+  Le prompt change pour indiquer qu'on est maintenant à l'intérieur du
+  conteneur. Installer la bibliothèque :
+
+      pip install nom-de-la-bibliotheque
+
+  Taper exit pour quitter le conteneur et revenir au terminal du PC.
+
+  Note : cette installation est temporaire. Elle sera perdue si le
+  conteneur est recréé avec docker-compose down + up.
+
+
+------------------------------------------------------------------------------
+  ARRÊT ET REDÉMARRAGE
+------------------------------------------------------------------------------
+
+  ARRÊTER LE CLUSTER (les données sont conservées)
+
+      docker-compose down
+
+  REDÉMARRER LE CLUSTER
+
+      docker-compose up -d
+
+  REDÉMARRER UN SEUL CONTENEUR
+
+      docker-compose restart jupyter
+      docker-compose restart spark-master
+
+  VOIR LES RESSOURCES CPU/RAM EN TEMPS RÉEL
+
+      docker stats
+
+
+------------------------------------------------------------------------------
+  MESSAGES D'AVERTISSEMENT AU DÉMARRAGE — NORMAUX
+------------------------------------------------------------------------------
+
+  Ces messages apparaissent systématiquement au démarrage de chaque session
+  PySpark. Ce sont des avertissements, pas des erreurs.
+  Le code continue de s'exécuter normalement.
+
+  ─────────────────────────────────────────────────────────────────────────
+  WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform
+  ─────────────────────────────────────────────────────────────────────────
+  Spark 3.1.2 a été conçu pour Java 8. Le conteneur tourne sur Java 11.
+  Spark tente un accès mémoire direct non autorisé depuis Java 9.
+  Il bascule automatiquement sur une méthode de remplacement.
+  Aucune action requise.
+
+  ─────────────────────────────────────────────────────────────────────────
+  WARNING: Unable to load native-hadoop library for your platform
+  ─────────────────────────────────────────────────────────────────────────
+  Hadoop dispose d'une bibliothèque en C pour certaines opérations rapides.
+  Elle n'est pas incluse dans cette image Docker. Hadoop utilise
+  automatiquement une version Java équivalente.
+  Aucune action requise.
+
+  ─────────────────────────────────────────────────────────────────────────
+  [Stage 1:=====>          (11 + 6) / 25]
+  ─────────────────────────────────────────────────────────────────────────
+  Barre de progression Spark. Les 3 chiffres indiquent respectivement :
+  tâches terminées, tâches en cours d'exécution, total des tâches.
+  Disparaît automatiquement quand toutes les tâches sont finies.
+
+
+------------------------------------------------------------------------------
+  ERREURS COURANTES ET SOLUTIONS
+------------------------------------------------------------------------------
+
+  ERREUR — InvalidClassException
+  ─────────────────────────────────────────────────────────────────────────
+  Message complet :
+      java.io.InvalidClassException: org.apache.spark.sql.catalyst...
+      local class incompatible: stream classdesc serialVersionUID = ...
+
+  Cause : les versions Spark ne sont pas identiques entre les conteneurs.
+          Jupyter et spark-master/worker utilisent des versions différentes.
+
+  Solution :
+  Ouvrir docker-compose.yml et s'assurer que ces lignes ont exactement
+  le même numéro de version Spark :
+
+      spark-master:   image: bde2020/spark-master:3.1.2-hadoop3.2
+      spark-worker:   image: bde2020/spark-worker:3.1.2-hadoop3.2
+      spark-worker-2: image: bde2020/spark-worker:3.1.2-hadoop3.2
+      spark-worker-3: image: bde2020/spark-worker:3.1.2-hadoop3.2
+      jupyter:        image: jupyter/pyspark-notebook:spark-3.1.2
+
+  Relancer ensuite le cluster :
+
+      docker-compose down
+      docker-compose up -d
+
+
+  ERREUR — Connection refused
+  ─────────────────────────────────────────────────────────────────────────
+  Message complet :
+      ConnectionRefusedError: [Errno 111] Connection refused
+
+  Cause : le spark-master n'est pas encore prêt ou n'est pas démarré.
+
+  Solution :
+  Vérifier l'état des conteneurs :
+
+      docker-compose ps
+
+  Si spark-master n'est pas "Up", attendre 30 secondes et réessayer.
+  Si le problème persiste, consulter les logs :
+
+      docker logs spark-master
+
+
+  ERREUR — HDFS Permission denied
+  ─────────────────────────────────────────────────────────────────────────
+  Message complet :
+      Permission denied: user=jovyan, access=WRITE, inode="/data"
+
+  Cause : le dossier /data n'existe pas encore sur HDFS,
+          ou les droits d'accès n'ont pas été attribués.
+
+  Solution :
+  Dans une cellule Jupyter, exécuter ces deux commandes :
+
+      !hdfs dfs -mkdir -p /data
+      !hdfs dfs -chmod 777 /data
+
+
+  ERREUR — Port already in use
+  ─────────────────────────────────────────────────────────────────────────
+  Message complet :
+      Bind for 0.0.0.0:8888 failed: port is already allocated
+
+  Cause : un autre programme utilise déjà ce port sur le PC.
+
+  Solution :
+  Dans docker-compose.yml, changer le numéro côté gauche uniquement.
+  Le numéro côté droit (port interne du conteneur) ne doit jamais changer.
+
+      ports:
+        - "8889:8888"    Jupyter accessible sur http://localhost:8889
+
+  Relancer le cluster après la modification :
+
+      docker-compose down
+      docker-compose up -d
+
+
+------------------------------------------------------------------------------
+  COMMANDES DE DIAGNOSTIC
+------------------------------------------------------------------------------
+
+      docker-compose ps                      état de tous les conteneurs
+      docker-compose logs -f jupyter         logs en direct de Jupyter
+      docker-compose logs -f spark-master    logs en direct de Spark Master
+      docker logs namenode                   logs du namenode HDFS
+      docker stats                           utilisation CPU/RAM en direct
+      docker exec -it jupyter bash           entrer dans le conteneur Jupyter
+      docker exec -it namenode bash          entrer dans le conteneur HDFS
+
+
+------------------------------------------------------------------------------
+  FICHIERS DE RÉFÉRENCE INCLUS
+------------------------------------------------------------------------------
+
+      README.md               présentation conceptuelle du projet
+      README-TECHNIQUE.md     explication des fichiers de configuration
+                              et annuaire complet PySpark / Pandas
+
+
+------------------------------------------------------------------------------
+  RESSOURCES EN LIGNE
+------------------------------------------------------------------------------
+
+      Documentation PySpark    https://spark.apache.org/docs/latest/api/python
+      Documentation HDFS       https://hadoop.apache.org/docs/stable
+      Documentation Docker     https://docs.docker.com
+
+==============================================================================

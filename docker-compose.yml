@@ -1,0 +1,226 @@
+# ============================================================================
+# DOCKER-COMPOSE HADOOP + SPARK CLUSTER
+# ============================================================================
+# Ce fichier crée un cluster complet avec:
+# - 1 NameNode (cerveau HDFS)
+# - 2 DataNodes (stockage HDFS)
+# - 1 Spark Master (coordinateur)
+# - 1 Spark Worker (exécution)
+# ============================================================================
+
+version: '3.8'
+
+services:
+  # ==========================================================================
+  # NAMENODE - Le cerveau de HDFS
+  # ==========================================================================
+  # Rôle: Sait OÙ sont stockés les fichiers (métadonnées)
+  # Port 9870: Interface web pour voir les fichiers HDFS
+  # Port 9000: Port de communication HDFS (utilisé dans le code Python)
+  # ==========================================================================
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    hostname: namenode
+    restart: always
+    ports:
+      - "9870:9870"   # Interface web HDFS: http://localhost:9870
+      - "9000:9000"   # Port HDFS pour le code
+    volumes:
+      - namenode_data:/hadoop/dfs/name          # Persistance des métadonnées
+      - ./data:/data                             # Dossier partagé avec ton PC
+    environment:
+      - CLUSTER_NAME=hadoop-cluster
+    env_file:
+      - ./hadoop.env
+    networks:
+      - hadoop-network
+
+  # ==========================================================================
+  # DATANODE 1 - Stockage des données (première copie)
+  # ==========================================================================
+  # Rôle: Stocke physiquement les blocs de données
+  # ==========================================================================
+  datanode1:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode1
+    hostname: datanode1
+    restart: always
+    volumes:
+      - datanode1_data:/hadoop/dfs/data
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870
+    env_file:
+      - ./hadoop.env
+    networks:
+      - hadoop-network
+    depends_on:
+      - namenode
+
+  # ==========================================================================
+  # DATANODE 2 - Stockage des données (réplication/backup)
+  # ==========================================================================
+  # Rôle: Stocke une copie des données (tolérance aux pannes)
+  # ==========================================================================
+  datanode2:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode2
+    hostname: datanode2
+    restart: always
+    volumes:
+      - datanode2_data:/hadoop/dfs/data
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870
+    env_file:
+      - ./hadoop.env
+    networks:
+      - hadoop-network
+    depends_on:
+      - namenode
+
+  # ==========================================================================
+  # SPARK MASTER - Chef d'orchestre Spark
+  # ==========================================================================
+  # Rôle: Reçoit les jobs et distribue le travail aux workers
+  # Port 8080: Interface web Spark: http://localhost:8080
+  # Port 7077: Port de communication interne
+  # ==========================================================================
+  spark-master:
+    image: bde2020/spark-master:3.1.2-hadoop3.2
+    container_name: spark-master
+    hostname: spark-master
+    restart: always
+    ports:
+      - "8080:8080"   # Interface web Spark Master
+      - "7077:7077"   # Port communication Spark
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+      - SPARK_MASTER_HOST=spark-master
+      - SPARK_MASTER_PORT=7077
+    volumes:
+      - ./data:/data
+      - ./scripts:/scripts
+    networks:
+      - hadoop-network
+    depends_on:
+      - namenode
+      - datanode1
+      - datanode2
+
+  # ==========================================================================
+  # SPARK WORKER 1 - Exécute les calculs
+  # ==========================================================================
+  # Rôle: Fait le travail réel (lit les données, calcule, transforme)
+  # Port 8081: Interface web du worker
+  # ==========================================================================
+  spark-worker:
+    image: bde2020/spark-worker:3.1.2-hadoop3.2
+    container_name: spark-worker
+    hostname: spark-worker
+    restart: always
+    ports:
+      - "8081:8081"   # Interface web Spark Worker
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+      - SPARK_WORKER_MEMORY=2g
+      - SPARK_WORKER_CORES=2
+    volumes:
+      - ./data:/data
+      - ./scripts:/scripts
+    networks:
+      - hadoop-network
+    depends_on:
+      - spark-master
+
+  # ==========================================================================
+  # SPARK WORKER 2
+  # ==========================================================================
+  spark-worker-2:
+    image: bde2020/spark-worker:3.1.2-hadoop3.2
+    container_name: spark-worker-2
+    hostname: spark-worker-2
+    restart: always
+    ports:
+      - "8082:8081"         # ← port différent du worker 1 (8081 déjà pris)
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+      - SPARK_WORKER_MEMORY=2g
+      - SPARK_WORKER_CORES=2
+    volumes:
+      - ./data:/data
+      - ./scripts:/scripts
+    networks:
+      - hadoop-network
+    depends_on:
+      - spark-master
+
+  # ==========================================================================
+  # SPARK WORKER 3
+  # ==========================================================================
+  spark-worker-3:
+    image: bde2020/spark-worker:3.1.2-hadoop3.2
+    container_name: spark-worker-3
+    hostname: spark-worker-3
+    restart: always
+    ports:
+      - "8083:8081"         # ← port différent des workers 1 et 2
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+      - SPARK_WORKER_MEMORY=2g
+      - SPARK_WORKER_CORES=2
+    volumes:
+      - ./data:/data
+      - ./scripts:/scripts
+    networks:
+      - hadoop-network
+    depends_on:
+      - spark-master
+
+  # ==========================================================================
+  # JUPYTER - Interface pour écrire ton code PySpark
+  # ==========================================================================
+  jupyter:
+    image: jupyter/pyspark-notebook:spark-3.1.2
+    container_name: jupyter
+    hostname: jupyter
+    restart: always
+    ports:
+      - "8888:8888"
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+      - JUPYTER_TOKEN=bonjour
+    volumes:
+      - ./notebooks:/home/jovyan/work
+      - ./data:/home/jovyan/data
+    networks:
+      - hadoop-network
+    depends_on:
+      - spark-master
+      - namenode
+
+# ============================================================================
+# VOLUMES - Persistance des données
+# ============================================================================
+# Les données survivent même si tu supprimes les conteneurs
+# ============================================================================
+volumes:
+  namenode_data:
+    name: hadoop_namenode_data
+  datanode1_data:
+    name: hadoop_datanode1_data
+  datanode2_data:
+    name: hadoop_datanode2_data
+
+# ============================================================================
+# RÉSEAU - Communication entre conteneurs
+# ============================================================================
+# Tous les conteneurs peuvent se parler par leur nom (namenode, spark-master...)
+# ============================================================================
+networks:
+  hadoop-network:
+    name: hadoop-network
+    driver: bridge
