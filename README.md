@@ -1,6 +1,6 @@
 # Cluster Big Data Local — Hadoop + Spark + Jupyter
 
-## En quoi ce projet se consiste ?
+## Quel est l'objet de ce projet ?
 
 Ce projet simule sur **une seule machine personnelle** ce qu'une grande entreprise ferait avec des dizaines de serveurs. Il permet de traiter de grandes quantités de données de façon organisée, performante et reproductible, en utilisant les mêmes technologies que Netflix, Airbnb ou Spotify utilisent en production.
 
