@@ -211,6 +211,20 @@ Jupyter est la page web depuis laquelle on écrit et exécute le code. Jupyter n
 
 ---
 
+### Trois langages dans le même notebook
+
+Jupyter supporte Python, PySpark et SQL dans le même notebook — chaque cellule peut utiliser un langage différent selon le besoin.
+
+| Langage | Usage | Exemple |
+|---------|-------|---------|
+| Python | visualisation, petits fichiers locaux | `df.plot()` |
+| PySpark | traitement distribué sur le cluster | `df.groupBy("col").count().show()` |
+| SQL | requêtes sur les données Spark | `spark.sql("SELECT * FROM table").show()` |
+
+Charger (PySpark) → Agréger (SQL) → Visualiser (Python)
+
+---
+
 ## Le trajet d'une instruction, du début à la fin
 
 ```
