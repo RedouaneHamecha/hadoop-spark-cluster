@@ -1,3 +1,5 @@
+![Cluster Big Data Local](bg.jpg)
+
 # Cluster Big Data Local — Hadoop + Spark + Jupyter
 
 ## Quel est l'objet de ce projet ?
